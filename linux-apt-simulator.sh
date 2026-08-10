@@ -523,16 +523,6 @@ test_defense_evasion() {
     cl "rm -f /tmp/.update-checker /tmp/.sysmon"
 
     # --- Elastic Rule: "Potential Security Tool Disable" ---
-    t "Security Tool Disable Attempt"
-    info "Elastic: Attempt to Disable Security Tools"
-    systemctl stop elastic-agent 2>/dev/null || true
-    systemctl stop filebeat 2>/dev/null || true
-    systemctl stop wazuh-agent 2>/dev/null || true
-    systemctl stop falco 2>/dev/null || true
-    service ossec stop 2>/dev/null || true
-    ok "systemctl stop elastic-agent/filebeat/wazuh-agent/falco/ossec"
-    cl "systemctl start elastic-agent 2>/dev/null; systemctl start filebeat 2>/dev/null"
-
     # --- Elastic Rule: "File made Immutable via chattr" ---
     t "File Made Immutable (chattr)"
     info "Elastic: File Made Immutable"
@@ -545,6 +535,41 @@ test_defense_evasion() {
 # ============================================================================
 # CREDENTIAL ACCESS (TA0006) — Actually read credential files
 # ============================================================================
+# ============================================================================
+# SECURITY TOOL DISABLE (STANDALONE — NOT IN RUN ALL / --auto)
+# ⚠  This WILL stop your monitoring agents (elastic-agent, filebeat, etc.)
+#    Only accessible via explicit menu [D]. Excluded from run_all() on purpose.
+# ============================================================================
+test_disable_security_tools() {
+    hdr "SECURITY TOOL DISABLE (STANDALONE)"
+
+    echo -e "  ${YELLOW}${BOLD}⚠  WARNING${NC}${YELLOW}: This will stop elastic-agent, filebeat, wazuh-agent,${NC}"
+    echo -e "  ${YELLOW}falco, and ossec on this host.${NC}"
+    echo -e "  ${YELLOW}Cleanup script only restarts elastic-agent + filebeat automatically.${NC}"
+    echo ""
+    echo -n "  Type 'yes' to continue: "
+    read -r CONFIRM
+    if [ "$CONFIRM" != "yes" ]; then
+        echo -e "  ${DIM}Aborted.${NC}"
+        return
+    fi
+    echo ""
+
+    t "Security Tool Disable Attempt"
+    info "Elastic: Attempt to Disable Security Tools"
+    systemctl stop elastic-agent 2>/dev/null || true
+    systemctl stop filebeat 2>/dev/null || true
+    systemctl stop wazuh-agent 2>/dev/null || true
+    systemctl stop falco 2>/dev/null || true
+    service ossec stop 2>/dev/null || true
+    ok "systemctl stop elastic-agent/filebeat/wazuh-agent/falco/ossec"
+    cl "systemctl start elastic-agent 2>/dev/null; systemctl start filebeat 2>/dev/null; systemctl start wazuh-agent 2>/dev/null; systemctl start falco 2>/dev/null; service ossec start 2>/dev/null"
+
+    echo ""
+    echo -e "  ${CYAN}Restore now:${NC} ${BOLD}sudo systemctl start elastic-agent filebeat wazuh-agent falco${NC}"
+    echo ""
+}
+
 test_credential_access() {
     hdr "CREDENTIAL ACCESS (TA0006)"
 
@@ -1137,6 +1162,7 @@ show_menu() {
     echo -e "    ${BOLD}[A]${NC}  Exfiltration           (TA0010)"
     echo -e "    ${BOLD}[B]${NC}  Impact                 (TA0040)"
     echo -e "    ${BOLD}[C]${NC}  Advanced Tradecraft"
+    echo -e "    ${BOLD}[D]${NC}  ${YELLOW}Disable Security Tools  (standalone, NOT in RUN ALL)${NC}"
     echo -e "    ${BOLD}[X]${NC}  Exit"
     echo ""
     echo -n "  > "
@@ -1149,7 +1175,8 @@ show_menu() {
         6) test_discovery && print_summary ;; 7) test_lateral_movement && print_summary ;;
         8) test_collection && print_summary ;; 9) test_c2 && print_summary ;;
         [aA]) test_exfiltration && print_summary ;; [bB]) test_impact && print_summary ;;
-        [cC]) test_advanced && print_summary ;; [xX]) exit 0 ;;
+        [cC]) test_advanced && print_summary ;; [dD]) test_disable_security_tools && print_summary ;;
+        [xX]) exit 0 ;;
         *) echo -e "  ${RED}Invalid${NC}"; show_menu ;;
     esac
 }
