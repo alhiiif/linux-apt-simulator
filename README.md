@@ -19,9 +19,6 @@ No agents, no C2 servers, no complex setup. Just a single bash script that makes
 ## Quick Start
 
 ```bash
-# Clone the repo
-git clone https://github.com/<your-username>/linux-apt-simulator.git
-cd linux-apt-simulator
 
 # Run all tests (automated)
 sudo bash linux-apt-simulator.sh --auto
