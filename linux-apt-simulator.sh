@@ -27,6 +27,7 @@ CYAN='\033[0;36m'; MAGENTA='\033[0;35m'; BOLD='\033[1m'
 DIM='\033[2m'; NC='\033[0m'
 SIM_USER="apt_backdoor"
 TC=0; PC=0; FC=0
+MODS_RUN=""
 SPIN_PID=""; CURRENT_TEST=""; INFO_BUF=""
 COLS=$(tput cols 2>/dev/null || echo 80)
 
@@ -190,6 +191,7 @@ hdr() {
 }
 
 cl() { echo "$1" >> "$CLEANUP"; }
+ckc_tag() { MODS_RUN="${MODS_RUN}|$1"; }
 check_root() { [ "$EUID" -ne 0 ] && echo -e "${RED}[!] Run as root: sudo bash $0${NC}" && exit 1; }
 setup() {
     mkdir -p "$APTDIR"/{loot,tools,staging}
@@ -204,6 +206,7 @@ setup() {
 # EXECUTION (TA0002) — Elastic rules that fire on process execution
 # ============================================================================
 test_execution() {
+    ckc_tag "execution"
     hdr "EXECUTION (TA0002)"
 
     # --- Elastic Rule: "Linux Command and Scripting Interpreter" ---
@@ -323,6 +326,7 @@ TMR
 # PERSISTENCE (TA0003) — Creating actual persistent artifacts
 # ============================================================================
 test_persistence() {
+    ckc_tag "persistence"
     hdr "PERSISTENCE (TA0003)"
 
     # --- Elastic Rule: "Linux User Account Creation" ---
@@ -460,6 +464,7 @@ PROF
 # PRIVILEGE ESCALATION (TA0004)
 # ============================================================================
 test_privesc() {
+    ckc_tag "privesc"
     hdr "PRIVILEGE ESCALATION (TA0004)"
 
     # --- Elastic Rule: "SUID/SGID Bit Set" ---
@@ -539,6 +544,7 @@ test_privesc() {
 # DEFENSE EVASION (TA0005) — Execute actual evasion behaviors
 # ============================================================================
 test_defense_evasion() {
+    ckc_tag "defense_evasion"
     hdr "DEFENSE EVASION (TA0005)"
 
     # --- Elastic Rule: "Attempt to Disable IPTables/Firewall" ---
@@ -670,6 +676,7 @@ test_defense_evasion() {
 #    Only accessible via explicit menu [D]. Excluded from run_all() on purpose.
 # ============================================================================
 test_disable_security_tools() {
+    ckc_tag "disable_security_tools"
     hdr "SECURITY TOOL DISABLE (STANDALONE)"
 
     echo -e "  ${YELLOW}${BOLD}⚠  WARNING${NC}${YELLOW}: This will stop elastic-agent, filebeat, wazuh-agent,${NC}"
@@ -700,6 +707,7 @@ test_disable_security_tools() {
 }
 
 test_credential_access() {
+    ckc_tag "credential_access"
     hdr "CREDENTIAL ACCESS (TA0006)"
 
     # --- Elastic Rule: "Sensitive File Access" ---
@@ -823,6 +831,7 @@ test_credential_access() {
 # DISCOVERY (TA0007) — Execute real enumeration commands
 # ============================================================================
 test_discovery() {
+    ckc_tag "discovery"
     hdr "DISCOVERY (TA0007)"
 
     t "System Information Discovery"
@@ -895,6 +904,7 @@ test_discovery() {
 # LATERAL MOVEMENT (TA0008)
 # ============================================================================
 test_lateral_movement() {
+    ckc_tag "lateral_movement"
     hdr "LATERAL MOVEMENT (TA0008)"
 
     t "SSH Connection Attempt to Non-Existent Host"
@@ -963,6 +973,7 @@ test_lateral_movement() {
 # COLLECTION (TA0009)
 # ============================================================================
 test_collection() {
+    ckc_tag "collection"
     hdr "COLLECTION (TA0009)"
 
     t "Data Staging — Copy Sensitive Files"
@@ -1007,6 +1018,7 @@ test_collection() {
 # COMMAND AND CONTROL (TA0011) — Generate real network events
 # ============================================================================
 test_c2() {
+    ckc_tag "c2"
     hdr "COMMAND AND CONTROL (TA0011)"
 
     # --- Elastic Rule: "DNS Activity to Suspicious Domain" ---
@@ -1111,6 +1123,7 @@ except: pass
 # EXFILTRATION (TA0010) — Execute real exfil behaviors
 # ============================================================================
 test_exfiltration() {
+    ckc_tag "exfiltration"
     hdr "EXFILTRATION (TA0010)"
 
     t "Data Exfiltration via Curl POST"
@@ -1145,6 +1158,7 @@ test_exfiltration() {
 # IMPACT (TA0040)
 # ============================================================================
 test_impact() {
+    ckc_tag "impact"
     hdr "IMPACT (TA0040)"
 
     # --- Elastic Rule: "Ransomware Behavior" ---
@@ -1209,6 +1223,7 @@ test_impact() {
 # ADVANCED — Additional execution-based tests
 # ============================================================================
 test_advanced() {
+    ckc_tag "advanced"
     hdr "ADVANCED TRADECRAFT (BONUS)"
 
     t "Webshell Indicators (File Creation in Web Root)"
@@ -1308,6 +1323,7 @@ s.close()
 # INITIAL ACCESS (TA0001)
 # ============================================================================
 test_initial_access() {
+    ckc_tag "initial_access"
     hdr "INITIAL ACCESS (TA0001)"
 
     t "Phishing Attachment Drop (Office Macro Lure)"
@@ -1365,6 +1381,7 @@ test_initial_access() {
 # FILELESS EXECUTION (TA0005 extension — In-Memory)
 # ============================================================================
 test_fileless() {
+    ckc_tag "fileless"
     hdr "FILELESS / IN-MEMORY EXECUTION"
 
     t "memfd_create Fileless Execution (Python)"
@@ -1450,6 +1467,7 @@ EOF
 # CONTAINER / KUBERNETES ESCAPE (TA0004 extension)
 # ============================================================================
 test_container_escape() {
+    ckc_tag "container_escape"
     hdr "CONTAINER / K8s ESCAPE"
 
     t "Docker Socket Abuse"
@@ -1502,6 +1520,7 @@ test_container_escape() {
 # SUPPLY CHAIN INDICATORS (TA0195 / Software Supply Chain)
 # ============================================================================
 test_supply_chain() {
+    ckc_tag "supply_chain"
     hdr "SUPPLY CHAIN INDICATORS"
 
     t "Suspicious pip Package Install (Typosquatting)"
@@ -1558,6 +1577,7 @@ SETUP
 # PROCESS INJECTION (T1055)
 # ============================================================================
 test_process_injection() {
+    ckc_tag "process_injection"
     hdr "PROCESS INJECTION (T1055)"
 
     t "ptrace Attach via Python ctypes"
@@ -1620,6 +1640,7 @@ PYEOF
 # NETWORK SNIFFING (T1040)
 # ============================================================================
 test_network_sniffing() {
+    ckc_tag "network_sniffing"
     hdr "NETWORK SNIFFING (T1040)"
 
     t "tcpdump Packet Capture"
@@ -1677,6 +1698,7 @@ PYEOF
 # INPUT CAPTURE (T1056)
 # ============================================================================
 test_input_capture() {
+    ckc_tag "input_capture"
     hdr "INPUT CAPTURE (T1056)"
 
     t "strace Keyboard/Read Snooping on PID"
@@ -1747,6 +1769,7 @@ PYEOF
 # UNSECURED CREDENTIALS (T1552)
 # ============================================================================
 test_unsecured_credentials() {
+    ckc_tag "unsecured_credentials"
     hdr "UNSECURED CREDENTIALS (T1552)"
 
     t "AWS Credential File Access"
@@ -1819,6 +1842,7 @@ test_unsecured_credentials() {
 # DISCOVERY EXTENDED (T1083/T1069/T1135/T1018/T1007/T1518)
 # ============================================================================
 test_discovery_extended() {
+    ckc_tag "discovery_extended"
     hdr "DISCOVERY EXTENDED (T1083/T1069/T1135/T1018/T1007/T1518)"
 
     t "File and Directory Discovery — Sensitive Paths (T1083)"
@@ -1895,6 +1919,7 @@ test_discovery_extended() {
 # C2 PROTOCOLS EXTENDED (T1095/T1571/T1573/T1102/T1001)
 # ============================================================================
 test_c2_protocols() {
+    ckc_tag "c2_protocols"
     hdr "C2 PROTOCOLS EXTENDED (T1095/T1571/T1573/T1102/T1001)"
 
     t "ICMP Tunnel Pattern — Raw Socket (T1095)"
@@ -1989,6 +2014,7 @@ PYEOF
 # EXFILTRATION EXTENDED (T1020/T1048/T1029)
 # ============================================================================
 test_exfiltration_extended() {
+    ckc_tag "exfiltration_extended"
     hdr "EXFILTRATION EXTENDED (T1020/T1048/T1029)"
 
     t "FTP Exfiltration Attempt (T1048)"
@@ -2070,6 +2096,7 @@ FTPEOF
 # IMPACT EXTENDED (T1490/T1491/T1498/T1485)
 # ============================================================================
 test_impact_extended() {
+    ckc_tag "impact_extended"
     hdr "IMPACT EXTENDED (T1490/T1491/T1498/T1485)"
 
     t "Inhibit System Recovery — Remove Backups (T1490)"
@@ -2147,6 +2174,7 @@ HTML
 # LATERAL TOOL TRANSFER (T1570)
 # ============================================================================
 test_lateral_tool_transfer() {
+    ckc_tag "lateral_tool_transfer"
     hdr "LATERAL TOOL TRANSFER (T1570)"
 
     t "Tool Download via curl to Staging Path"
@@ -2208,6 +2236,7 @@ test_lateral_tool_transfer() {
 # ACCOUNT MANIPULATION (T1098)
 # ============================================================================
 test_account_manipulation() {
+    ckc_tag "account_manipulation"
     hdr "ACCOUNT MANIPULATION (T1098)"
 
     t "Add Backdoor User to Privileged Groups"
@@ -2264,6 +2293,7 @@ test_account_manipulation() {
 # BOOT/LOGON PERSISTENCE EXTENDED (T1547)
 # ============================================================================
 test_boot_persistence() {
+    ckc_tag "boot_persistence"
     hdr "BOOT/LOGON PERSISTENCE EXTENDED (T1547)"
 
     t "rc.local Backdoor (T1037.004)"
@@ -2357,6 +2387,7 @@ SVCUNIT
 # EXPLOITATION INDICATORS (T1068/T1203/T1190)
 # ============================================================================
 test_exploitation_indicators() {
+    ckc_tag "exploitation_indicators"
     hdr "EXPLOITATION INDICATORS (T1068/T1203/T1190)"
 
     t "Dirty Pipe (CVE-2022-0847) Kernel Fingerprint"
@@ -2482,12 +2513,122 @@ JSONEOF
 
 generate_html_report() {
     local HTMLFILE="/tmp/apt-sim-report-$(date '+%Y%m%d_%H%M%S').html"
-    local TS
+    local TS HOSTNAME PCT=0
     TS=$(date '+%Y-%m-%d %H:%M:%S')
-    local HOSTNAME
     HOSTNAME=$(hostname)
-    local PCT=0
     [ "$TC" -gt 0 ] && PCT=$(( PC * 100 / TC ))
+
+    # ── Cyber Kill Chain phase computation ──────────────────────────
+    local p1="" p2="" p3="" p4="" p5="" p6="" p7=""
+    local c1=0 c2=0 c3=0 c4=0 c5=0 c6=0 c7=0
+
+    _ckc_assign() {
+        local key="$1" ph="$2" lbl="$3"
+        [[ "$MODS_RUN" != *"|$key"* ]] && return
+        case "$ph" in
+            1) c1=$((c1+1)); p1="${p1}<li>${lbl}</li>" ;;
+            2) c2=$((c2+1)); p2="${p2}<li>${lbl}</li>" ;;
+            3) c3=$((c3+1)); p3="${p3}<li>${lbl}</li>" ;;
+            4) c4=$((c4+1)); p4="${p4}<li>${lbl}</li>" ;;
+            5) c5=$((c5+1)); p5="${p5}<li>${lbl}</li>" ;;
+            6) c6=$((c6+1)); p6="${p6}<li>${lbl}</li>" ;;
+            7) c7=$((c7+1)); p7="${p7}<li>${lbl}</li>" ;;
+        esac
+    }
+
+    _ckc_assign "discovery"              1  "Discovery"
+    _ckc_assign "network_sniffing"       1  "Network Sniffing"
+    _ckc_assign "discovery_extended"     1  "Discovery Extended"
+    _ckc_assign "supply_chain"           2  "Supply Chain"
+    _ckc_assign "initial_access"         3  "Initial Access"
+    _ckc_assign "lateral_tool_transfer"  3  "Lateral Tool Transfer"
+    _ckc_assign "execution"              4  "Execution"
+    _ckc_assign "privesc"                4  "Privilege Escalation"
+    _ckc_assign "fileless"               4  "Fileless / In-Memory"
+    _ckc_assign "process_injection"      4  "Process Injection"
+    _ckc_assign "container_escape"       4  "Container/K8s Escape"
+    _ckc_assign "exploitation_indicators" 4 "Exploitation Indicators"
+    _ckc_assign "persistence"            5  "Persistence"
+    _ckc_assign "defense_evasion"        5  "Defense Evasion"
+    _ckc_assign "account_manipulation"   5  "Account Manipulation"
+    _ckc_assign "boot_persistence"       5  "Boot/Logon Persistence"
+    _ckc_assign "disable_security_tools" 5  "Disable Security Tools"
+    _ckc_assign "c2"                     6  "Command &amp; Control"
+    _ckc_assign "c2_protocols"           6  "C2 Protocols Extended"
+    _ckc_assign "advanced"               6  "Advanced Tradecraft"
+    _ckc_assign "credential_access"      7  "Credential Access"
+    _ckc_assign "lateral_movement"       7  "Lateral Movement"
+    _ckc_assign "collection"             7  "Collection"
+    _ckc_assign "input_capture"          7  "Input Capture"
+    _ckc_assign "unsecured_credentials"  7  "Unsecured Creds"
+    _ckc_assign "exfiltration"           7  "Exfiltration"
+    _ckc_assign "exfiltration_extended"  7  "Exfiltration Extended"
+    _ckc_assign "impact"                 7  "Impact"
+    _ckc_assign "impact_extended"        7  "Impact Extended"
+
+    # Build per-phase HTML blocks
+    _ph() {
+        local num="$1" name="$2" mods="$3" cnt="$4"
+        local cls="ckc-inactive"; [ "$cnt" -gt 0 ] && cls="ckc-active"
+        local ul=""
+        [ -n "$mods" ] && ul="<ul class=\"ckc-mods\">$mods</ul>"
+        local s=""; [ "$cnt" -ne 1 ] && s="s"
+        printf '<div class="ckc-phase %s"><div class="ckc-num">%s</div><div class="ckc-name">%s</div><div class="ckc-cnt">%s mod%s</div>%s</div>' \
+            "$cls" "$num" "$name" "$cnt" "$s" "$ul"
+    }
+    local h1 h2 h3 h4 h5 h6 h7
+    h1=$(_ph "1" "Reconnaissance"       "$p1" "$c1")
+    h2=$(_ph "2" "Weaponization"         "$p2" "$c2")
+    h3=$(_ph "3" "Delivery"              "$p3" "$c3")
+    h4=$(_ph "4" "Exploitation"          "$p4" "$c4")
+    h5=$(_ph "5" "Installation"          "$p5" "$c5")
+    h6=$(_ph "6" "C&amp;C"               "$p6" "$c6")
+    h7=$(_ph "7" "Actions on Objectives" "$p7" "$c7")
+
+    # Build module-to-phase detail rows
+    local mod_rows=""
+    _mod_row() {
+        local key="$1" label="$2" mitre="$3" ph="$4" phname="$5"
+        local status badge
+        if [[ "$MODS_RUN" == *"|$key"* ]]; then
+            status="RUN"; badge="pass"
+        else
+            status="—"; badge="skip"
+        fi
+        mod_rows="${mod_rows}<tr><td>${label}</td><td class=\"dim\">${mitre}</td>"
+        mod_rows="${mod_rows}<td><span class=\"badge ph\">${ph} ${phname}</span></td>"
+        mod_rows="${mod_rows}<td><span class=\"badge ${badge}\">${status}</span></td></tr>"
+    }
+    _mod_row "discovery"              "Discovery"              "TA0007"              1 "Reconnaissance"
+    _mod_row "network_sniffing"       "Network Sniffing"       "T1040"               1 "Reconnaissance"
+    _mod_row "discovery_extended"     "Discovery Extended"     "T1083/T1069/T1135"   1 "Reconnaissance"
+    _mod_row "supply_chain"           "Supply Chain"           "T1195/T1072"         2 "Weaponization"
+    _mod_row "initial_access"         "Initial Access"         "TA0001"              3 "Delivery"
+    _mod_row "lateral_tool_transfer"  "Lateral Tool Transfer"  "T1570"               3 "Delivery"
+    _mod_row "execution"              "Execution"              "TA0002"              4 "Exploitation"
+    _mod_row "privesc"                "Privilege Escalation"   "TA0004"              4 "Exploitation"
+    _mod_row "fileless"               "Fileless / In-Memory"   "T1055/T1620"         4 "Exploitation"
+    _mod_row "process_injection"      "Process Injection"      "T1055"               4 "Exploitation"
+    _mod_row "container_escape"       "Container/K8s Escape"   "T1611"               4 "Exploitation"
+    _mod_row "exploitation_indicators" "Exploitation Indicators" "T1068/T1203"        4 "Exploitation"
+    _mod_row "persistence"            "Persistence"            "TA0003"              5 "Installation"
+    _mod_row "defense_evasion"        "Defense Evasion"        "TA0005"              5 "Installation"
+    _mod_row "account_manipulation"   "Account Manipulation"   "T1098"               5 "Installation"
+    _mod_row "boot_persistence"       "Boot/Logon Persistence" "T1547"               5 "Installation"
+    _mod_row "disable_security_tools" "Disable Security Tools" "T1562"               5 "Installation"
+    _mod_row "c2"                     "Command &amp; Control"  "TA0011"              6 "C&amp;C"
+    _mod_row "c2_protocols"           "C2 Protocols Extended"  "T1095/T1571/T1573"   6 "C&amp;C"
+    _mod_row "advanced"               "Advanced Tradecraft"    "T1071/T1102"         6 "C&amp;C"
+    _mod_row "credential_access"      "Credential Access"      "TA0006"              7 "Actions"
+    _mod_row "lateral_movement"       "Lateral Movement"       "TA0008"              7 "Actions"
+    _mod_row "collection"             "Collection"             "TA0009"              7 "Actions"
+    _mod_row "input_capture"          "Input Capture"          "T1056"               7 "Actions"
+    _mod_row "unsecured_credentials"  "Unsecured Credentials"  "T1552"               7 "Actions"
+    _mod_row "exfiltration"           "Exfiltration"           "TA0010"              7 "Actions"
+    _mod_row "exfiltration_extended"  "Exfiltration Extended"  "T1020/T1048/T1029"   7 "Actions"
+    _mod_row "impact"                 "Impact"                 "TA0040"              7 "Actions"
+    _mod_row "impact_extended"        "Impact Extended"        "T1490/T1491/T1498"   7 "Actions"
+
     cat > "$HTMLFILE" << HTMLEOF
 <!DOCTYPE html>
 <html lang="en">
@@ -2495,71 +2636,85 @@ generate_html_report() {
 <meta charset="UTF-8">
 <title>APT Simulator Report</title>
 <style>
-  body{font-family:monospace;background:#0d0d0d;color:#e0e0e0;padding:2em;margin:0}
-  h1{color:#ff4444;border-bottom:1px solid #333;padding-bottom:.5em}
-  h2{color:#ff8800;margin-top:1.5em}
-  .badge{display:inline-block;padding:.2em .7em;border-radius:4px;font-size:.9em}
+  *{box-sizing:border-box}
+  body{font-family:monospace;background:#0d0d0d;color:#e0e0e0;padding:2em;margin:0;max-width:1400px}
+  h1{color:#ff4444;border-bottom:1px solid #333;padding-bottom:.5em;margin-bottom:.5em}
+  h2{color:#ff8800;margin-top:2em;margin-bottom:.75em;font-size:1em;letter-spacing:.08em;text-transform:uppercase}
+  .badge{display:inline-block;padding:.15em .6em;border-radius:3px;font-size:.8em}
   .pass{background:#1a4a1a;color:#66ff66}
   .fail{background:#4a1a1a;color:#ff6666}
+  .skip{background:#2a2a2a;color:#666}
   .info{background:#1a2a4a;color:#66aaff}
-  table{width:100%;border-collapse:collapse;margin-top:1em}
-  th{background:#1a1a1a;color:#aaa;text-align:left;padding:.5em .8em;border-bottom:1px solid #333}
-  td{padding:.4em .8em;border-bottom:1px solid #222}
-  .bar-wrap{background:#222;border-radius:4px;height:16px;width:200px;display:inline-block}
-  .bar-fill{background:#ff4444;height:100%;border-radius:4px}
-  footer{color:#555;margin-top:2em;font-size:.8em}
+  .ph{background:#2a1a3a;color:#cc88ff;font-size:.75em}
+  table{width:100%;border-collapse:collapse;margin-top:.5em}
+  th{background:#1a1a1a;color:#888;text-align:left;padding:.5em .8em;border-bottom:1px solid #333;font-size:.85em}
+  td{padding:.35em .8em;border-bottom:1px solid #1a1a1a;font-size:.85em}
+  .dim{color:#666;font-size:.8em}
+  .bar-wrap{background:#1a1a1a;border-radius:3px;height:12px;width:180px;display:inline-block;vertical-align:middle}
+  .bar-fill{background:linear-gradient(90deg,#ff4444,#ff8844);height:100%;border-radius:3px}
+  /* ── Cyber Kill Chain ── */
+  .ckc-wrap{overflow-x:auto;padding:0 0 .5em}
+  .ckc-chain{display:flex;align-items:flex-start;gap:0;min-width:900px}
+  .ckc-phase{flex:1;min-width:0;background:#111;border:1px solid #2a2a2a;padding:.75em .5em;text-align:center;position:relative}
+  .ckc-phase:first-child{border-radius:6px 0 0 6px}
+  .ckc-phase:last-child{border-radius:0 6px 6px 0}
+  .ckc-arrow{display:flex;align-items:flex-start;padding-top:.85em;color:#333;font-size:1.3em;flex-shrink:0;padding-left:2px;padding-right:2px}
+  .ckc-active{background:#1c0a0a;border-color:#aa2222}
+  .ckc-active .ckc-arrow-prev{border-color:#aa2222}
+  .ckc-num{font-size:1.5em;font-weight:bold;line-height:1}
+  .ckc-active .ckc-num{color:#ff5555}
+  .ckc-inactive .ckc-num{color:#333}
+  .ckc-name{font-size:.65em;font-weight:bold;margin:.3em 0 .2em;line-height:1.2}
+  .ckc-active .ckc-name{color:#eee}
+  .ckc-inactive .ckc-name{color:#444}
+  .ckc-cnt{font-size:.6em;margin-bottom:.4em}
+  .ckc-active .ckc-cnt{color:#ff8844}
+  .ckc-inactive .ckc-cnt{color:#333}
+  .ckc-mods{list-style:none;padding:0;margin:.4em 0 0;text-align:left;font-size:.6em;border-top:1px solid #2a2a2a;padding-top:.3em}
+  .ckc-active .ckc-mods{border-color:#331111}
+  .ckc-mods li{padding:.15em 0;color:#cc9966;border-bottom:1px solid #1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ckc-mods li:last-child{border-bottom:none}
+  footer{color:#444;margin-top:2.5em;font-size:.75em;border-top:1px solid #1a1a1a;padding-top:1em}
 </style>
 </head>
 <body>
-<h1>&#x26A0; Linux APT Simulator v3.0 — Report</h1>
-<p><span class="badge info">Generated:</span> $TS &nbsp; <span class="badge info">Host:</span> $HOSTNAME &nbsp; <span class="badge info">Operator:</span> $(whoami)</p>
+<h1>&#x26A0; Linux APT Simulator v3.0 — Simulation Report</h1>
+<p style="color:#888;font-size:.9em">
+  <span class="badge info">Generated</span> $TS &nbsp;
+  <span class="badge info">Host</span> $HOSTNAME &nbsp;
+  <span class="badge info">Operator</span> $(whoami)
+</p>
+
 <h2>Summary</h2>
 <table>
   <tr><th>Metric</th><th>Value</th></tr>
   <tr><td>Total Tests</td><td><strong>$TC</strong></td></tr>
-  <tr><td>Passed</td><td><span class="badge pass">$PC</span></td></tr>
-  <tr><td>Failed</td><td><span class="badge fail">$FC</span></td></tr>
-  <tr><td>Pass Rate</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${PCT}%"></div></div> &nbsp; ${PCT}%</td></tr>
+  <tr><td>Passed</td><td><span class="badge pass">$PC passed</span></td></tr>
+  <tr><td>Failed / Skipped</td><td><span class="badge fail">$FC</span></td></tr>
+  <tr><td>Pass Rate</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${PCT}%"></div></div> &nbsp; <strong>${PCT}%</strong></td></tr>
 </table>
-<h2>Tactics Executed</h2>
+
+<h2>Cyber Kill Chain Coverage</h2>
+<div class="ckc-wrap">
+<div class="ckc-chain">
+$h1<div class="ckc-arrow">&#9654;</div>$h2<div class="ckc-arrow">&#9654;</div>$h3<div class="ckc-arrow">&#9654;</div>$h4<div class="ckc-arrow">&#9654;</div>$h5<div class="ckc-arrow">&#9654;</div>$h6<div class="ckc-arrow">&#9654;</div>$h7
+</div>
+</div>
+
+<h2>Module → Kill Chain Phase Mapping</h2>
 <table>
-  <tr><th>Tactic</th><th>MITRE ID</th><th>Status</th></tr>
-  <tr><td>Initial Access</td><td>TA0001</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Execution</td><td>TA0002</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Persistence</td><td>TA0003</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Privilege Escalation</td><td>TA0004</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Defense Evasion</td><td>TA0005</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Credential Access</td><td>TA0006</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Discovery</td><td>TA0007</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Lateral Movement</td><td>TA0008</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Collection</td><td>TA0009</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Exfiltration</td><td>TA0010</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Command &amp; Control</td><td>TA0011</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Impact</td><td>TA0040</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Fileless / In-Memory</td><td>T1055/T1620</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Process Injection</td><td>T1055</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Network Sniffing</td><td>T1040</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Input Capture</td><td>T1056</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Unsecured Credentials</td><td>T1552</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Discovery Extended</td><td>T1083/T1069/T1135/T1018/T1518</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>C2 Protocols Extended</td><td>T1095/T1571/T1573/T1102/T1001</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Exfiltration Extended</td><td>T1020/T1048/T1029</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Impact Extended</td><td>T1490/T1491/T1498/T1485</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Lateral Tool Transfer</td><td>T1570</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Account Manipulation</td><td>T1098</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Boot/Logon Persistence</td><td>T1547</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Exploitation Indicators</td><td>T1068/T1203/T1190</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Container / K8s Escape</td><td>T1611</td><td><span class="badge pass">RUN</span></td></tr>
-  <tr><td>Supply Chain</td><td>T1195/T1072</td><td><span class="badge pass">RUN</span></td></tr>
+  <tr><th>Module</th><th>MITRE ID</th><th>Kill Chain Phase</th><th>Status</th></tr>
+  $mod_rows
 </table>
+
 <h2>Files</h2>
 <table>
   <tr><th>Type</th><th>Path</th></tr>
-  <tr><td>Activity Log</td><td>$LOGFILE</td></tr>
-  <tr><td>Cleanup Script</td><td>$CLEANUP</td></tr>
-  <tr><td>This Report</td><td>$HTMLFILE</td></tr>
+  <tr><td>Activity Log</td><td class="dim">$LOGFILE</td></tr>
+  <tr><td>Cleanup Script</td><td class="dim">$CLEANUP</td></tr>
+  <tr><td>This Report</td><td class="dim">$HTMLFILE</td></tr>
 </table>
-<footer>Linux APT Simulator — FOR LAB/TEST ENVIRONMENTS ONLY &bull; MITRE ATT&amp;CK mapped</footer>
+<footer>Linux APT Simulator v3.0 &mdash; FOR LAB/TEST ENVIRONMENTS ONLY &bull; MITRE ATT&amp;CK mapped &bull; Cyber Kill Chain &copy; Lockheed Martin</footer>
 </body>
 </html>
 HTMLEOF
